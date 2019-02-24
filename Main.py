@@ -16,15 +16,15 @@ class Board:
             sb = str(index_y)
             for index_x, value in enumerate(row):
                 if value == 0:
-                    sb += "."
+                    sb += " ."
                 elif value == 1:
-                    sb += "o"
+                    sb += " o"
                 else:
-                    sb += "x"
+                    sb += " x"
             result += sb + "\n"
-        sb = " "
+        sb = "  "
         if self.WIDTH < 10:
-            sb += "".join(range(self.WIDTH))
+            sb += " ".join([str(x) for x in range(self.WIDTH)])
         elif self.WIDTH < 100:
             for i in range(self.WIDTH):
                 if i < 10:
@@ -71,25 +71,62 @@ class Board:
     def is_winning_state(self):
         # check horizontally:
         for y in range(self.HEIGHT):
-            for x in range(self.WIDTH-4):
-                value = self.field[y,x]
+            for x in range(self.WIDTH - 3):
+                value = self.field[y, x]
                 if value == 0:
                     continue
                 conv = [1]
                 for i in range(1, 4):
-                    if self.field[y, x+i] == value:
+                    if self.field[y, x + i] == value:
                         conv.append(1)
                 if sum(conv) == 4:
-                    print("winning at", x, y)
+                    print("winning at", x, y, "to", x+3, y)
                     return True, value
+
+        # check vertically:
+        for x in range(self.WIDTH):
+            for y in range(self.HEIGHT - 3):
+                value = self.field[y, x]
+                if value == 0:
+                    continue
+                conv = [1]
+                for i in range(1, 4):
+                    if self.field[y + i, x] == value:
+                        conv.append(1)
+                if sum(conv) == 4:
+                    print("winning at", x, y, "to", x, y+3)
+                    return True, value
+        # check diagonally:
+        for x in range(self.WIDTH - 3):
+            for y in range(self.HEIGHT - 3):
+                value = self.field[y, x]
+                if value == 0:
+                    continue
+                conv = [1]
+                for i in range(1, 4):
+                    if self.field[y + i, x + i] == value:
+                        conv.append(1)
+                if sum(conv) == 4:
+                    print("winning at", x, y, "to", x + 3, y + 3)
+                    return True, value
+        for x in range(3, self.WIDTH):
+            for y in range(self.HEIGHT - 3):
+                value = self.field[y, x]
+                if value == 0:
+                    continue
+                conv = [1]
+                for i in range(1, 4):
+                    if self.field[y + i, x - i] == value:
+                        conv.append(1)
+                if sum(conv) == 4:
+                    print("winning at", x, y, "to", x - 3, y + 3)
+                    return True, value
+
         return False, value
 
 
-
-
-
 if __name__ == '__main__':
-    WIDTH, HEIGHT = 20, 7
+    WIDTH, HEIGHT = 7, 7
     board = Board(WIDTH, HEIGHT)
     players = [1,2]
     player_index = 0
@@ -104,7 +141,7 @@ if __name__ == '__main__':
         if win:
             break
         player_index += 1
-        player_index %= 2
+        player_index %= len(players )
         print(board.to_string())
     print(board.to_string())
     print(board.possible_positions())
