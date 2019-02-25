@@ -1,136 +1,63 @@
+from Environment import Board
 import numpy as np
-
-
-class Board:
-
-    WIDTH, HEIGHT = 10, 7
-
-    def __init__(self, _width_, _height_):
-        self.WIDTH = _width_
-        self.HEIGHT = _height_
-        self.field = np.zeros(shape=(self.HEIGHT, self.WIDTH))
-
-    def to_string(self):
-        result = ""
-        for index_y, row in enumerate(self.field):
-            sb = str(index_y)
-            for index_x, value in enumerate(row):
-                if value == 0:
-                    sb += " ."
-                elif value == 1:
-                    sb += " o"
-                else:
-                    sb += " x"
-            result += sb + "\n"
-        sb = "  "
-        if self.WIDTH < 10:
-            sb += " ".join([str(x) for x in range(self.WIDTH)])
-        elif self.WIDTH < 100:
-            for i in range(self.WIDTH):
-                if i < 10:
-                    sb += " "
-                else:
-                    sb += str(i)[0]
-            sb += "\n "
-            for i in range(self.WIDTH):
-                if i < 10:
-                    sb += str(i)[0]
-                else:
-                    sb += str(i)[1]
-
-        result += sb
-        return result
-
-    def possible_positions(self):
-        positions = []
-        for x in range(self.WIDTH):
-            for y in reversed(range(self.HEIGHT)):
-                if self.field[y, x] == 0:
-                    positions.append((x, y))
-                    break
-        return positions
-
-    def move(self, x, y, player):
-        if 0 <= x < self.WIDTH and 0 <= y < self.HEIGHT:
-
-            if self.field[y, x] == 0:
-                if y + 1 < self.HEIGHT:
-                    if self.field[y+1, x] != 0:
-                        self.field[y, x] = player
-                        return True
-                    else:
-                        return False
-                else:
-                    self.field[y, x] = player
-                    return True
-            else:
-                return False
-        else:
-            return False
-
-    def is_winning_state(self):
-        # check horizontally:
-        for y in range(self.HEIGHT):
-            for x in range(self.WIDTH - 3):
-                value = self.field[y, x]
-                if value == 0:
-                    continue
-                conv = [1]
-                for i in range(1, 4):
-                    if self.field[y, x + i] == value:
-                        conv.append(1)
-                if sum(conv) == 4:
-                    print("winning at", x, y, "to", x+3, y)
-                    return True, value
-
-        # check vertically:
-        for x in range(self.WIDTH):
-            for y in range(self.HEIGHT - 3):
-                value = self.field[y, x]
-                if value == 0:
-                    continue
-                conv = [1]
-                for i in range(1, 4):
-                    if self.field[y + i, x] == value:
-                        conv.append(1)
-                if sum(conv) == 4:
-                    print("winning at", x, y, "to", x, y+3)
-                    return True, value
-        # check diagonally:
-        for x in range(self.WIDTH - 3):
-            for y in range(self.HEIGHT - 3):
-                value = self.field[y, x]
-                if value == 0:
-                    continue
-                conv = [1]
-                for i in range(1, 4):
-                    if self.field[y + i, x + i] == value:
-                        conv.append(1)
-                if sum(conv) == 4:
-                    print("winning at", x, y, "to", x + 3, y + 3)
-                    return True, value
-        for x in range(3, self.WIDTH):
-            for y in range(self.HEIGHT - 3):
-                value = self.field[y, x]
-                if value == 0:
-                    continue
-                conv = [1]
-                for i in range(1, 4):
-                    if self.field[y + i, x - i] == value:
-                        conv.append(1)
-                if sum(conv) == 4:
-                    print("winning at", x, y, "to", x - 3, y + 3)
-                    return True, value
-
-        return False, value
-
+from Models import MLP, REINFORCEAgent, Adam
 
 if __name__ == '__main__':
-    WIDTH, HEIGHT = 7, 7
-    board = Board(WIDTH, HEIGHT)
+    WIDTH, HEIGHT = 7, 10
+    max_env_steps = 100
+    board = Board(WIDTH, HEIGHT, max_env_steps)
+
+    network = MLP(n_output=WIDTH, n_hidden=20)
+    agent = REINFORCEAgent(board.get_action_space, network, optimizer=Adam())
+
+    episode_count = 10001
+    done = False
+    reward = 0
+
+    R = np.zeros(episode_count)
+    winners = []
+    for i in range(episode_count):
+        #print(i)
+        board.reset()
+        ob = board.get_state()
+        loss = 0
+        while True:
+
+            action, policy = agent.act(ob, reward, done)
+            ob, reward, done, winner = board.step(action[0])
+            #print(policy)
+            # get reward associated with taking the previous action in the previous state
+            agent.rewards.append(reward)
+            R[i] += reward
+
+            # recompute score function: grad_theta log pi_theta (s_t, a_t) * v_t
+            agent.scores.append(agent.compute_score(action, policy))
+
+            # we learn at the end of each episode
+            if done:
+                loss += agent.compute_loss()
+                agent.model.cleargrads()
+                loss.backward()
+                loss.unchain_backward()
+                agent.optimizer.update()
+                winners.append(winner)
+                if len(winners) > 500:
+                    winners = winners[1:]
+                if i % 100 == 0:
+                    #print(len(agent.rewards))
+                    #print(loss)
+                    os = len([o for o in winners if o == 1])
+                    xs = len([x for x in winners if x == 2])
+                    print(i, ":", os, "|", xs, "|", os/(xs+os))
+                agent.rewards = []
+                agent.scores = []
+
+                break
+
+
     players = [1,2]
     player_index = 0
-    for i in range(100):
+    for i in range(1):
         possible = board.possible_positions()
         move = possible[np.random.randint(0, len(possible))]
         valid = board.move(move[0],move[1], players[player_index])
